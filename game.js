@@ -1,8 +1,6 @@
-let deck=[],discard=[],player=[],bot=[],turn='player',level='easy',locked=false,pendingWild=null,unoCalled=false;
-
+let deck=[],discard=[],player=[],bot=[],turn='player',level='easy',locked=false,pendingWildOwner=null,unoReady=false;
 const COLORS=['red','yellow','green','blue'];
 const COLOR_NAMES={red:'MERAH',yellow:'KUNING',green:'HIJAU',blue:'BIRU'};
-
 const $=s=>document.querySelector(s);
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -11,11 +9,14 @@ function buildDeck(){
   const d=[];
   for(const color of COLORS){
     d.push({color,type:'number',value:'0'});
-    for(let n=1;n<=9;n++) d.push({color,type:'number',value:String(n)});
+    for(let n=1;n<=9;n++)d.push({color,type:'number',value:String(n)});
     for(let k=0;k<2;k++){
       d.push({color,type:'skip',value:'SKIP'});
-      d.push({color,type:'reverse',value:'↻'});
+      d.push({color,type:'reverse',value:'REVERSE'});
       d.push({color,type:'draw2',value:'+2'});
+      // House-rule extras requested by the user.
+      d.push({color,type:'draw1',value:'+1'});
+      d.push({color,type:'draw5',value:'+5'});
     }
   }
   for(let k=0;k<4;k++){
@@ -26,322 +27,149 @@ function buildDeck(){
 }
 
 function startRound(){
-  deck=buildDeck();discard=[];player=[];bot=[];turn='player';locked=false;pendingWild=null;unoCalled=false;
+  $('#result')?.classList.add('hidden');
+  deck=buildDeck();discard=[];player=[];bot=[];turn='player';locked=false;pendingWildOwner=null;unoReady=false;
   for(let i=0;i<7;i++){player.push(deck.pop());bot.push(deck.pop())}
   let top=deck.pop();
   while(top.color==='wild'){deck.unshift(top);top=deck.pop()}
-  discard.push(top);
-  render();
-  setStatus('Giliran kamu — pilih kartu yang menyala ✨');
+  discard=[top];render();setStatus('Giliran kamu — pasang kartu yang cocok.');
 }
 
 function refillDeck(){
-  if(deck.length)return;
-  const top=discard.pop();
-  deck=shuffle(discard);
-  discard=[top];
+  if(deck.length||discard.length<=1)return;
+  const top=discard.pop();deck=shuffle(discard);discard=[top];
 }
-
-function drawCard(hand){
-  refillDeck();
-  return deck.pop();
+function takeCard(hand){refillDeck();if(!deck.length)return null;const c=deck.pop();hand.push(c);return c}
+function hasPlayable(hand){return hand.some(c=>isPlayable(c,hand))}
+function isPlayable(card,hand){
+  const top=discard.at(-1);if(!top)return true;
+  if(card.type==='wild')return true;
+  if(card.type==='wild4')return !hand.some(c=>c!==card&&c.color===top.color);
+  return card.color===top.color||card.value===top.value;
 }
-
-function isPlayable(card){
-  const top=discard.at(-1);
-  if(card.type==='wild4'){
-    // Official UNO rule: Wild Draw 4 is playable only if player has no card matching current color.
-    const hasColor=player.some(c=>c.color===top.color);
-    return !hasColor;
-  }
-  return card.color==='wild'||card.color===top.color||card.value===top.value;
-}
-
-function normalPlayable(card){
-  const top=discard.at(-1);
-  return card.color==='wild'||card.color===top.color||card.value===top.value;
-}
-
-function cardElement(card,big=false){
-  const e=document.createElement('div');
-  e.className=`unoCard ${big?'big ':''}${card.color}`;
-  const s=document.createElement('span');s.textContent=card.value;e.appendChild(s);
-  return e;
-}
-
-function hasPlayableCard(){
-  return player.some(c=>isPlayable(c));
-}
+function botPlayable(card){const top=discard.at(-1);if(card.type==='wild')return true;if(card.type==='wild4')return !bot.some(c=>c.color===top.color&&c!==card);return card.color===top.color||card.value===top.value}
+function cardElement(card,big=false){const e=document.createElement('div');e.className=`unoCard ${big?'big ':''}${card.color}`;const s=document.createElement('span');s.textContent=card.value;e.appendChild(s);return e}
+function cardLabel(c){return c.value+(c.color==='wild'?'':` ${COLOR_NAMES[c.color]}`)}
+function setStatus(t){$('#status').textContent=t}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>e.classList.remove('show'),1900)}
 
 function render(){
   $('#levelBadge').textContent=level.toUpperCase();
-  $('#botCount').textContent=`${bot.length} kartu`;
-  $('#playerCount').textContent=`${player.length} kartu`;
-  $('#deckCount').textContent=deck.length;
-  const drawBtn=$('#drawBtn');
-  const canDraw=turn==='player' && !locked && !hasPlayableCard();
-  drawBtn.disabled=!canDraw;
-  drawBtn.classList.toggle('disabled',!canDraw);
+  $('#botCount').textContent=`${bot.length} kartu`;$('#playerCount').textContent=`${player.length} kartu`;$('#deckCount').textContent=deck.length;
+  $('#drawBtn').disabled=!(turn==='player'&&!locked&&!hasPlayable(player));
+  const unoCan=turn==='player'&&!locked&&player.length===2&&!unoReady;
+  $('#unoBtn').disabled=!unoCan;$('#unoBtn').textContent=unoCan?'UNO! (SEBELUM PASANG)':'UNO!';
 
-  const bh=$('#botHand');bh.innerHTML='';
-  bot.forEach((_,i)=>{
-    const e=document.createElement('div');e.className='backCard';e.style.animationDelay=`${i*25}ms`;bh.appendChild(e)
-  });
-
-  const ph=$('#playerHand');ph.innerHTML='';
-  player.forEach((c,i)=>{
-    const e=cardElement(c);
-    if(turn==='player' && isPlayable(c))e.classList.add('playable');
-    e.style.animationDelay=`${i*20}ms`;
-    e.onclick=()=>playPlayer(i);
-    ph.appendChild(e);
-  });
-
+  const bh=$('#botHand');bh.innerHTML='';bot.forEach((_,i)=>{const e=document.createElement('div');e.className='backCard';e.style.animationDelay=`${i*20}ms`;bh.appendChild(e)});
+  const ph=$('#playerHand');ph.innerHTML='';player.forEach((c,i)=>{const e=cardElement(c);if(turn==='player'&&isPlayable(c,player))e.classList.add('playable');e.style.animationDelay=`${i*18}ms`;e.onclick=()=>playPlayer(i);ph.appendChild(e)});
   const old=$('#topCard'),fresh=cardElement(discard.at(-1),true);fresh.id='topCard';old.replaceWith(fresh);
 
-  $('#playerDot').classList.toggle('active',turn==='player');
-  $('#botDot').classList.toggle('active',turn==='bot');
-
+  $('#playerDot').classList.toggle('active',turn==='player');$('#botDot').classList.toggle('active',turn==='bot');
   if(turn==='player'){
-    const playable=player.map((c,i)=>isPlayable(c)?formatCard(c,i):null).filter(Boolean);
-    $('#playableInfo').textContent=playable.length
-      ? `Bisa dipasang: ${playable.join(' • ')} — AMBIL terkunci`
-      : 'Tidak ada kartu yang cocok — tekan AMBIL untuk mengambil 1 kartu';
-  }else{
-    $('#playableInfo').textContent='Tunggu giliran Bot...';
-  }
+    const p=player.filter(c=>isPlayable(c,player));
+    $('#playableInfo').textContent=p.length?`Bisa dipasang: ${p.map(cardLabel).join(' • ')}`:'Tidak ada kartu yang cocok — DRAW / AMBIL 1 kartu.';
+  }else $('#playableInfo').textContent='Bot sedang bermain…';
 }
 
-function formatCard(c,i){return `${c.value}${c.color==='wild'?'':` ${COLOR_NAMES[c.color]}`}`}
+function animateDraw(target,count,after){
+  const source=$('#drawBtn').getBoundingClientRect();
+  const targetEl=target==='player'?$('#playerHand'):$('#botHand');
+  const targetRect=targetEl.getBoundingClientRect();
+  const hand=target==='player'?player:bot;
+  const drawn=[];for(let i=0;i<count;i++){const c=takeCard(hand);if(c)drawn.push(c)}
+  render();
+  const layer=$('#flyLayer');
+  drawn.forEach((c,i)=>{
+    const el=document.createElement('div');el.className=`flying ${target==='bot'?'back':c.color}`;el.textContent=target==='bot'?'UNO':c.value;
+    const sx=source.left+source.width/2-24,sy=source.top+source.height/2-36;
+    el.style.left=`${sx}px`;el.style.top=`${sy}px`;layer.appendChild(el);
+    const tx=targetRect.left+targetRect.width/2-24+(i-(drawn.length-1)/2)*10,ty=targetRect.top+targetRect.height/2-36;
+    requestAnimationFrame(()=>el.animate([{transform:'translate(0,0) scale(.68) rotate(-3deg)',opacity:.3},{transform:`translate(${tx-sx}px,${ty-sy}px) scale(1) rotate(${i%2?4:-4}deg)`,opacity:1}],{duration:560+i*85,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'}).onfinish=()=>el.remove());
+  });
+  const db=$('#drawBtn');db.classList.remove('drawPulse');void db.offsetWidth;db.classList.add('drawPulse');
+  toast(`🎴 ${target==='player'?'Kamu':'Bot'} mengambil ${drawn.length} kartu`);
+  setTimeout(()=>after(drawn),Math.min(1050,580+drawn.length*85));
+}
 
-function setStatus(text){$('#status').textContent=text}
-
-function toast(text){
-  const e=$('#toast');e.textContent=text;e.classList.add('show');
-  clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>e.classList.remove('show'),1900);
+function callUno(){
+  if(turn!=='player'||locked)return;
+  if(player.length!==2){toast('UNO ditekan saat tersisa 2 kartu, sebelum memasang kartu kedua-terakhir.');return}
+  unoReady=true;render();setStatus('🔥 UNO dipanggil! Sekarang pasang satu kartu untuk menyisakan 1.');toast('UNO! ✅');
 }
 
 function playPlayer(i){
   if(turn!=='player'||locked)return;
-  const c=player[i];
-
-  if(!isPlayable(c)){
-    if(c.type==='wild4')toast('⛔ +4 hanya boleh jika kamu tidak punya warna kartu jalan');
-    else toast('⛔ Kartu ini tidak bisa dipasang');
-    return;
-  }
-
-  // If player is going down to one card, UNO must be called before playing the final/penultimate card.
-  if(player.length===2 && !unoCalled){
-    toast('⚠️ Kamu lupa UNO! Ambil 2 kartu.');
-    player.push(drawCard(player),drawCard(player));
-    render();
-    return;
-  }
-
-  locked=true;
-  player.splice(i,1);
-  discard.push({...c});
-  unoCalled=false;
-  render();
-
+  const c=player[i];if(!isPlayable(c,player)){toast('⛔ Kartu ini tidak bisa dipasang.');return}
+  if(player.length===2&&!unoReady){toast('⚠️ Tekan UNO! saat masih punya 2 kartu, sebelum memasang kartu kedua-terakhir.');return}
+  locked=true;const didCall=unoReady;player.splice(i,1);discard.push({...c});unoReady=false;render();
   if(player.length===0){finish(true);return}
-  if(player.length===1)setStatus('🔥 Tinggal 1 kartu! Tekan UNO sekarang.');
-
-  if(c.type==='wild'||c.type==='wild4'){
-    pendingWild='player';
-    $('#colorModal').classList.remove('hidden');
-    return;
-  }
-
+  if(player.length===1)setStatus(didCall?'🔥 UNO benar! Kamu tinggal 1 kartu.':'⚠️ UNO tidak dipanggil sebelum kartu kedua-terakhir dipasang.');
+  if(c.type==='wild'||c.type==='wild4'){pendingWildOwner='player';$('#colorModal').classList.remove('hidden');return}
   applyEffect(c,'player');
 }
 
-function chooseColorForBot(){
-  const counts={red:0,yellow:0,green:0,blue:0};
-  bot.forEach(c=>{if(counts[c.color]!=null)counts[c.color]++});
-  return COLORS.reduce((best,c)=>counts[c]>counts[best]?c:best,'red');
+function chooseBotColor(){
+  const count={red:0,yellow:0,green:0,blue:0};bot.forEach(c=>{if(count[c.color]!=null)count[c.color]++});return COLORS.slice().sort((a,b)=>count[b]-count[a])[0];
 }
-
-function applyEffect(card,who){
-  let next=who==='player'?'bot':'player';
-
-  // In a two-player UNO game Reverse acts like Skip.
-  if(card.type==='skip'||card.type==='reverse')next=who;
-
-  if(card.type==='draw2'){
-    const hand=next==='player'?player:bot;
-    hand.push(drawCard(hand),drawCard(hand));
-    toast(`+2: ${next==='player'?'Kamu':'Bot'} mengambil 2 kartu`);
-  }
-
-  turn=next;locked=false;render();
-
-  if(turn==='bot'){
-    setStatus('🤖 Bot sedang berpikir...');
-    setTimeout(botTurn,700);
-  }else{
-    setStatus('Giliran kamu — pilih kartu yang menyala ✨');
-  }
+function botChooseIndex(){
+  const playable=[];const top=discard.at(-1);const hasTopColor=bot.some(c=>c.color===top.color);
+  bot.forEach((c,i)=>{if(c.type==='wild4' ? !hasTopColor : botPlayable(c))playable.push(i)});
+  if(!playable.length)return -1;
+  if(level==='easy')return playable[Math.floor(Math.random()*playable.length)];
+  function score(c){let s=0;if(c.type==='draw5')s+=10;if(c.type==='wild4')s+=9;if(c.type==='draw2')s+=7;if(c.type==='skip'||c.type==='reverse')s+=5;if(c.type==='draw1')s+=4;if(c.type==='wild')s+=3;if(c.color!=='wild')s+=bot.filter(x=>x.color===c.color).length;if(level==='hard'&&c.color==='wild')s-=2;if(level==='master'&&bot.length<=2)s+=c.type==='wild'?4:0;return s}
+  return playable.sort((a,b)=>score(bot[b])-score(bot[a]))[0];
 }
-
-document.querySelectorAll('.colorGrid button').forEach(btn=>{
-  btn.onclick=()=>{
-    if(pendingWild!=='player')return;
-    const color=btn.dataset.color;
-    discard.at(-1).color=color;
-    pendingWild=null;
-    $('#colorModal').classList.add('hidden');
-    toast(`Warna berikutnya: ${COLOR_NAMES[color]}`);
-    applyEffect(discard.at(-1),'player');
-  };
-});
 
 function botTurn(){
   if(turn!=='bot'||locked)return;
-
-  const playable=bot.map((c,i)=>normalBotPlayable(c)?i:-1).filter(i=>i>=0);
-  let four=bot.map((c,i)=>c.type==='wild4'?i:-1).filter(i=>i>=0);
-
-  let ids=playable.filter(i=>bot[i].type!=='wild4');
-
-  // +4 can only be used when bot has no matching current color.
-  const top=discard.at(-1);
-  const botHasColor=bot.some(c=>c.color===top.color);
-  if(!botHasColor)ids=ids.concat(four);
-
-  if(!ids.length){
-    const c=drawCard(bot);
-    render();
-    toast('🤖 Bot mengambil 1 kartu');
-    setTimeout(()=>{
-      if(c && (normalBotPlayable(c) || (c.type==='wild4'&&!bot.some(x=>x.color===discard.at(-1).color)))){
-        botPlay(bot.length-1);
-      }else{
-        turn='player';locked=false;render();setStatus('Giliran kamu — pilih kartu yang menyala ✨');
-      }
-    },550);
+  const idx=botChooseIndex();
+  if(idx===-1){
+    locked=true;
+    animateDraw('bot',1,(drawn)=>{
+      locked=false;const c=drawn[0];
+      if(c&&botPlayable(c)){setStatus('🤖 Kartu Bot bisa langsung dimainkan…');setTimeout(()=>botPlay(bot.length-1),280)}
+      else{turn='player';render();setStatus('Bot tidak punya kartu yang cocok. Giliran kamu.')} });
     return;
   }
-
-  let id;
-  if(level==='easy') id=ids[Math.floor(Math.random()*ids.length)];
-  else if(level==='hard') id=ids.sort((a,b)=>weight(bot[b])-weight(bot[a]))[0];
-  else id=ids.sort((a,b)=>masterScore(bot[b])-masterScore(bot[a]))[0];
-
-  botPlay(id);
-}
-
-function normalBotPlayable(c){
-  const top=discard.at(-1);
-  return c.color==='wild'||c.color===top.color||c.value===top.value;
-}
-
-function weight(c){
-  return c.type==='wild4'?9:c.type==='draw2'?7:c.type==='skip'||c.type==='reverse'?5:c.type==='wild'?4:1;
-}
-
-function masterScore(c){
-  const same=bot.filter(x=>x.color===c.color).length;
-  return weight(c)+(c.color==='wild'?0:same*.7);
+  botPlay(idx);
 }
 
 function botPlay(i){
-  locked=true;
-  const c=bot.splice(i,1)[0];
-  discard.push({...c});
-  render();
-
+  if(turn!=='bot'||locked)return;
+  locked=true;const c=bot.splice(i,1)[0];discard.push({...c});render();
   if(bot.length===0){finish(false);return}
   if(bot.length===1)toast('🤖 Bot: UNO!');
-
   if(c.type==='wild'||c.type==='wild4'){
-    setTimeout(()=>{
-      const color=chooseColorForBot();
-      discard.at(-1).color=color;
-      render();
-      toast(`🤖 Bot memilih ${COLOR_NAMES[color]}`);
-      applyEffect(discard.at(-1),'bot');
-    },450);
-    return;
+    setTimeout(()=>{discard.at(-1).color=chooseBotColor();render();toast(`🤖 Bot memilih ${COLOR_NAMES[discard.at(-1).color]}`);applyEffect(c,'bot')},450);return;
   }
-
   setTimeout(()=>applyEffect(c,'bot'),450);
 }
 
-$('#drawBtn').onclick=()=>{
-  if(turn!=='player'||locked)return;
-  if(hasPlayableCard()){
-    toast('⛔ Masih ada kartu yang bisa dipasang — kamu tidak perlu mengambil');
+function applyEffect(card,who){
+  const next=who==='player'?'bot':'player';
+  if(card.type==='skip'||card.type==='reverse'){
+    locked=false;turn=who;render();
+    if(turn==='bot'){setStatus(`⏭️ ${card.value==='REVERSE'?'REVERSE':'SKIP'} — giliran Bot lagi.`);setTimeout(botTurn,650)}
+    else setStatus(`⏭️ ${card.value==='REVERSE'?'REVERSE':'SKIP'} — giliran kamu lagi.`);
     return;
   }
-
-  locked=true;
-  const btn=$('#drawBtn');
-  btn.classList.remove('drawPulse');
-  void btn.offsetWidth;
-  btn.classList.add('drawPulse');
-
-  const c=drawCard(player);
-  if(!c){locked=false;render();toast('Deck habis');return;}
-  player.push(c);
-  render();
-
-  const cards=[...$('#playerHand').children];
-  const received=cards.at(-1);
-  if(received){
-    received.classList.add('receivingCard');
-    received.style.animationDelay='0ms';
-  }
-
-  toast(`Kamu mengambil 1 kartu: ${c.value}${c.color==='wild'?'':` ${COLOR_NAMES[c.color]}`}`);
-
-  // Aturan UNO: bila tidak ada kartu yang cocok, ambil 1.
-  // Jika kartu yang diambil ternyata cocok, pemain boleh langsung memainkannya.
-  if(isPlayable(c)){
-    locked=false;
-    render();
-    setStatus(`Kartu ${formatCard(c)} bisa langsung dipasang — ketuk kartu tersebut`);
-  }else{
-    turn='bot';
-    locked=false;
-    render();
-    setStatus('Kartu yang diambil tidak cocok. Giliran Bot...');
-    setTimeout(botTurn,700);
-  }
-};
-
-$('#unoBtn').onclick=()=>{
-  if(turn!=='player'){toast('Bukan giliran kamu');return}
-  if(player.length===1){
-    unoCalled=true;toast('🔥 UNO!');setStatus('UNO dipanggil — lanjutkan permainan');
-  }else{
-    toast('UNO hanya dipanggil saat tersisa 1 kartu');
-  }
-};
-
-function finish(playerWon){
-  turn='none';locked=true;render();
-  $('#resultIcon').textContent=playerWon?'🏆':'🤖';
-  $('#resultTitle').textContent=playerWon?'Kamu Menang!':'Bot Menang!';
-  $('#resultText').textContent=playerWon?'Semua kartu kamu sudah habis.':'Bot berhasil menghabiskan semua kartunya.';
-  $('#result').classList.remove('hidden');
+  let n=0;if(card.type==='draw2')n=2;if(card.type==='draw1')n=1;if(card.type==='draw5')n=5;
+  if(n){locked=true;animateDraw(next,n,()=>{turn=who;locked=false;render();if(turn==='bot'){setStatus(`🤖 Bot mengambil ${n} kartu karena ${card.value}. Gilirannya kembali ke Bot.`);setTimeout(botTurn,700)}else setStatus(`Kamu mengambil ${n} kartu karena ${card.value}. Giliran kamu lagi.`)});return}
+  turn=next;locked=false;render();if(turn==='bot'){setStatus('🤖 Bot sedang berpikir...');setTimeout(botTurn,700)}else setStatus('Giliran kamu — pasang kartu yang cocok.');
 }
 
-$('#playBtn').onclick=()=>{
-  $('#home').classList.add('hidden');$('#levels').classList.remove('hidden')
-};
-$('#backBtn').onclick=()=>{
-  $('#levels').classList.add('hidden');$('#home').classList.remove('hidden')
-};
-document.querySelectorAll('.level').forEach(btn=>btn.onclick=()=>{
-  document.querySelectorAll('.level').forEach(x=>x.classList.remove('active'));
-  btn.classList.add('active');level=btn.dataset.level;
-  $('#levels').classList.add('hidden');$('#game').classList.remove('hidden');startRound();
-});
-$('#restartBtn').onclick=()=>startRound();
-$('#againBtn').onclick=()=>{
-  $('#result').classList.add('hidden');startRound();
-};
+document.querySelectorAll('.colorGrid button').forEach(btn=>btn.onclick=()=>{if(pendingWildOwner!=='player')return;discard.at(-1).color=btn.dataset.color;pendingWildOwner=null;$('#colorModal').classList.add('hidden');toast(`Warna berikutnya: ${COLOR_NAMES[btn.dataset.color]}`);applyEffect(discard.at(-1),'player')});
 
+$('#drawBtn').onclick=()=>{
+  if(turn!=='player'||locked)return;
+  if(hasPlayable(player)){toast('⛔ Kamu masih punya kartu yang bisa dipasang.');return}
+  locked=true;
+  animateDraw('player',1,(drawn)=>{locked=false;const c=drawn[0];if(c&&isPlayable(c,player)){render();setStatus(`Kartu yang diambil bisa langsung dipasang: ${cardLabel(c)}`)}else{turn='bot';render();setStatus('Kartu yang diambil tidak cocok. Giliran Bot...');setTimeout(botTurn,700)}});
+};
+$('#unoBtn').onclick=callUno;
+function finish(win){turn='none';locked=true;render();$('#resultIcon').textContent=win?'🏆':'🤖';$('#resultTitle').textContent=win?'Kamu Menang!':'Bot Menang!';$('#resultText').textContent=win?'Semua kartu kamu sudah habis.':'Bot berhasil menghabiskan semua kartunya.';$('#result').classList.remove('hidden')}
+$('#playBtn').onclick=()=>{$('#home').classList.add('hidden');$('#levels').classList.remove('hidden')};
+$('#backBtn').onclick=()=>{$('#levels').classList.add('hidden');$('#home').classList.remove('hidden')};
+document.querySelectorAll('.level').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.level').forEach(x=>x.classList.remove('active'));btn.classList.add('active');level=btn.dataset.level;$('#levels').classList.add('hidden');$('#game').classList.remove('hidden');startRound()});
+$('#restartBtn').onclick=()=>startRound();$('#againBtn').onclick=()=>startRound();
 startRound();
