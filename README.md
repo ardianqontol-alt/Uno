@@ -1,26 +1,29 @@
-# UNO Web Game — Vercel
+# Game UNO V3 — Vercel
 
-Versi ini dibuat agar tampilan dan alur bermain mendekati referensi video: panel hijau vertikal, bot di atas, draw pile dan kartu jalan di tengah, status giliran, serta kartu pemain berjajar/fan di bawah.
+Versi ini memperbaiki alur permainan agar lebih dekat dengan aturan UNO dan memberi tahu kartu mana yang bisa dipasang.
 
-## Kartu
-Menggunakan representasi kartu permainan UNO standar: angka 0–9, Skip, Reverse, +2, Wild, dan Wild +4. Kartu dibuat dengan CSS/vector di dalam game, bukan mengambil aset/logo resmi dari pihak ketiga.
+## Aturan yang diterapkan
+- 7 kartu awal untuk pemain dan Bot.
+- Kartu yang bisa dipasang diberi efek glow ✨.
+- Kartu bisa dipasang jika warna sama atau simbol/angka sama.
+- Wild bisa dimainkan dan pemain memilih warna berikutnya.
+- Wild +4 hanya bisa dimainkan jika pemain tidak memiliki kartu dengan warna kartu jalan.
+- Skip melewati giliran.
+- Reverse pada permainan 2 pemain berfungsi seperti Skip.
+- +2 membuat pemain berikutnya mengambil 2 kartu dan kehilangan giliran.
+- Jika tidak punya kartu yang cocok, tekan AMBIL.
+- Jika kartu yang diambil cocok, kartu tersebut boleh langsung dipasang.
+- Saat tinggal 1 kartu, tekan UNO.
+- Jika tinggal 2 kartu lalu memasang kartu tanpa memanggil UNO, pemain dikenai penalti 2 kartu.
+- Bot memiliki Easy, Hard, dan Master.
 
-## Animasi
-- animasi pembagian kartu
-- kartu pemain terangkat saat disentuh
-- indikator giliran
-- animasi logo
-- efek toast untuk aksi
-- modal pemilihan warna
-- responsif untuk layar HP
-
-## Deploy Vercel
-Upload isi folder ini sebagai project Vercel. Tidak ada dependency npm.
+## Deploy
+Project ini adalah web statis tanpa dependency npm. Upload ke Vercel.
 
 Setelah deploy:
-`https://PROJECT.vercel.app/uno`
+`https://ayaka-uno.vercel.app`
 
-URL tersebut bisa dipasang ke tombol `.uno` pada bot WhatsApp.
+Kemudian URL tersebut dapat dipasang pada tombol `.uno` di bot WhatsApp.
 
 ## Catatan
-Mode saat ini adalah single-player melawan Bot. State permainan berjalan di browser dan tidak membutuhkan database.
+Kartu dibuat dengan CSS/HTML agar tidak mengambil gambar aset UNO resmi dari pihak ketiga.
