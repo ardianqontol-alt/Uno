@@ -91,4 +91,61 @@
 </div>
 <script src="game.js"></script>
 </body>
+  </html>
+  <div class="playerInfo">
+    <div class="avatar">🤖</div>
+    <div><strong>Bot</strong><small id="botCount">7 kartu</small></div>
+    <i id="botDot"></i>
+  </div>
+  <div id="botHand" class="botHand"></div>
+
+  <div class="centerArea">
+    <div class="pileBox">
+      <label>DRAW / AMBIL</label>
+      <button id="drawBtn" class="deck"><span>UNO</span><em id="deckCount">0</em></button>
+    </div>
+    <div class="pileBox">
+      <label>KARTU JALAN</label>
+      <div id="topCard" class="unoCard big"></div>
+    </div>
+  </div>
+
+  <div id="status" class="status">Giliran kamu</div>
+  <div id="playableInfo" class="playableInfo">Kartu yang bisa dipasang akan diberi tanda ✨</div>
+
+  <div class="playerInfo">
+    <div class="avatar">😎</div>
+    <div><strong>Kamu</strong><small id="playerCount">7 kartu</small></div>
+    <i id="playerDot" class="active"></i>
+  </div>
+
+  <div id="playerHand" class="playerHand"></div>
+  <button id="unoBtn" class="unoBtn">UNO!</button>
+  <div class="hint">Kartu yang bercahaya bisa dipasang. Saat tidak ada yang cocok, DRAW akan aktif.</div>
+</section>
+
+<div id="colorModal" class="overlay hidden">
+  <div class="dialog">
+    <h2>Pilih warna berikutnya</h2>
+    <div class="colorGrid">
+      <button class="red" data-color="red">MERAH</button>
+      <button class="yellow" data-color="yellow">KUNING</button>
+      <button class="green" data-color="green">HIJAU</button>
+      <button class="blue" data-color="blue">BIRU</button>
+    </div>
+  </div>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="dialog result">
+    <div id="resultIcon">🏆</div>
+    <h2 id="resultTitle">Kamu Menang!</h2>
+    <p id="resultText"></p>
+    <button class="cta" id="againBtn">MAIN LAGI</button>
+  </div>
+</div>
+<div id="toast" class="toast"></div><div id="flyLayer" class="flyLayer"></div>
+</div>
+<script src="game.js"></script>
+</body>
       </html>
