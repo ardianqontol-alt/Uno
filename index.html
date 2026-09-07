@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#06271f">
+  <title>Game UNO</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+  <section id="home" class="screen center">
+    <div class="logo-card">🃏</div>
+    <h1>Game <span>UNO</span></h1>
+    <p>Pilih strategi terbaikmu dan kalahkan Bot!</p>
+    <button class="primary" id="startBtn">🎮 MAIN DENGAN BOT</button>
+  </section>
+
+  <section id="difficulty" class="screen center hidden">
+    <div class="logo-card">🎮</div>
+    <h1>Pilih Tingkat Kesulitan</h1>
+    <p>Makin tinggi levelnya, makin licik Bot-nya.</p>
+    <div class="levels">
+      <button class="level active" data-level="easy">EASY</button>
+      <button class="level" data-level="hard">HARD</button>
+      <button class="level" data-level="master">MASTER</button>
+    </div>
+    <button class="back" id="backHome">← Kembali ke Awal</button>
+  </section>
+
+  <section id="game" class="game hidden">
+    <header class="topbar">
+      <div class="brand">🃏 Game <b>UNO</b></div>
+      <div class="badge" id="levelBadge">EASY</div>
+      <button class="iconBtn" id="restartBtn" title="Mulai ulang">↻</button>
+    </header>
+
+    <div class="opponent">
+      <div class="avatar">🤖</div>
+      <div><strong>Bot</strong><small id="botCount">7 kartu</small></div>
+      <span class="turnDot" id="botTurn"></span>
+    </div>
+    <div class="bot-hand" id="botHand"></div>
+
+    <div class="table">
+      <div class="pile-wrap">
+        <small>AMBIL</small>
+        <button class="deck" id="drawBtn"><span>UNO</span><em id="deckCount">0</em></button>
+      </div>
+      <div class="pile-wrap">
+        <small>KARTU JALAN</small>
+        <div id="currentCard" class="card large"></div>
+      </div>
+    </div>
+
+    <div class="status" id="status">Giliran kamu</div>
+
+    <div class="opponent you">
+      <div class="avatar">😎</div>
+      <div><strong>Kamu</strong><small id="playerCount">7 kartu</small></div>
+      <span class="turnDot on" id="playerTurn"></span>
+    </div>
+    <div class="player-hand" id="playerHand"></div>
+
+    <div class="actions">
+      <button class="unoBtn" id="unoBtn">UNO!</button>
+    </div>
+  </section>
+
+  <div class="modal hidden" id="colorModal">
+    <div class="modalBox">
+      <h2>Pilih warna</h2>
+      <div class="colorChoices">
+        <button data-color="red" class="red">MERAH</button>
+        <button data-color="yellow" class="yellow">KUNING</button>
+        <button data-color="green" class="green">HIJAU</button>
+        <button data-color="blue" class="blue">BIRU</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</main>
+<script src="game.js"></script>
+</body>
+</html>
