@@ -26,10 +26,25 @@ function buildDeck(){
   return shuffle(d);
 }
 
+function fairInitialHand(hand){
+  // House-rule balance: maksimal 4 action/wild pada opening hand.
+  // Ini hanya mencegah start yang ekstrem, bukan memberi keuntungan tersembunyi.
+  let guard=0;
+  while(hand.filter(c=>['skip','reverse','draw2','draw1','draw5','wild','wild4'].includes(c.type)).length>4 && guard++<10){
+    const idx=hand.findIndex(c=>['skip','reverse','draw2','draw1','draw5','wild','wild4'].includes(c.type));
+    if(idx<0||!deck.length)break;
+    const replacement=deck.pop();
+    deck.unshift(hand[idx]);
+    hand[idx]=replacement;
+  }
+}
 function startRound(){
   $('#result')?.classList.add('hidden');
   deck=buildDeck();discard=[];player=[];bot=[];turn='player';locked=false;pendingWildOwner=null;unoReady=false;
   for(let i=0;i<7;i++){player.push(deck.pop());bot.push(deck.pop())}
+  // Distribusi awal yang wajar: jika tangan seseorang terlalu penuh kartu aksi,
+  // tukar beberapa kartu dengan deck. Tidak melihat kartu lawan.
+  fairInitialHand(player); fairInitialHand(bot);
   let top=deck.pop();
   while(top.color==='wild'){deck.unshift(top);top=deck.pop()}
   discard=[top];render();setStatus('Giliran kamu — pasang kartu yang cocok.');
@@ -112,12 +127,50 @@ function chooseBotColor(){
   const count={red:0,yellow:0,green:0,blue:0};bot.forEach(c=>{if(count[c.color]!=null)count[c.color]++});return COLORS.slice().sort((a,b)=>count[b]-count[a])[0];
 }
 function botChooseIndex(){
-  const playable=[];const top=discard.at(-1);const hasTopColor=bot.some(c=>c.color===top.color);
-  bot.forEach((c,i)=>{if(c.type==='wild4' ? !hasTopColor : botPlayable(c))playable.push(i)});
+  const top=discard.at(-1);
+  const hasTopColor=bot.some(c=>c.color===top.color);
+  const playable=bot.map((c,i)=>({c,i})).filter(x=>{
+    if(x.c.type==='wild4') return !hasTopColor;
+    return botPlayable(x.c);
+  });
   if(!playable.length)return -1;
-  if(level==='easy')return playable[Math.floor(Math.random()*playable.length)];
-  function score(c){let s=0;if(c.type==='draw5')s+=10;if(c.type==='wild4')s+=9;if(c.type==='draw2')s+=7;if(c.type==='skip'||c.type==='reverse')s+=5;if(c.type==='draw1')s+=4;if(c.type==='wild')s+=3;if(c.color!=='wild')s+=bot.filter(x=>x.color===c.color).length;if(level==='hard'&&c.color==='wild')s-=2;if(level==='master'&&bot.length<=2)s+=c.type==='wild'?4:0;return s}
-  return playable.sort((a,b)=>score(bot[b])-score(bot[a]))[0];
+
+  // Bot tidak boleh mengetahui kartu pemain. Untuk menjaga permainan adil,
+  // EASY sering memilih kartu biasa secara acak, HARD memakai strategi ringan,
+  // MASTER lebih cerdas tetapi tetap tidak sempurna.
+  if(level==='easy'){
+    const normal=playable.filter(x=>!['wild4','draw5'].includes(x.c.type));
+    const pool=normal.length?normal:playable;
+    return pool[Math.floor(Math.random()*pool.length)].i;
+  }
+
+  function score(c){
+    let s=Math.random()*3; // selalu ada variasi, tidak deterministik
+    if(c.type==='number')s+=3;
+    if(c.type==='draw1')s+=2;
+    if(c.type==='draw2')s+=2.5;
+    if(c.type==='skip'||c.type==='reverse')s+=2;
+    if(c.type==='wild')s+=1;
+    if(c.type==='draw5')s+=2.5;
+    if(c.type==='wild4')s+=2;
+    // Jangan membuang kartu wild terlalu cepat.
+    if(c.color==='wild')s-= level==='hard'?1.5:0.5;
+    // Utamakan warna yang paling banyak dimiliki bot, bukan kartu yang
+    // paling menyakitkan bagi pemain.
+    if(c.color!=='wild')s+=bot.filter(x=>x.color===c.color).length*.7;
+    return s;
+  }
+
+  // HARD: kadang mengambil keputusan biasa supaya tidak terasa curang.
+  if(level==='hard' && Math.random()<0.32){
+    const normal=playable.filter(x=>x.c.type==='number'||x.c.type==='skip'||x.c.type==='reverse');
+    if(normal.length)return normal[Math.floor(Math.random()*normal.length)].i;
+  }
+
+  playable.sort((a,b)=>score(b.c)-score(a.c));
+  // MASTER juga punya peluang kecil memilih kandidat kedua.
+  if(level==='master' && playable.length>1 && Math.random()<0.22)return playable[1].i;
+  return playable[0].i;
 }
 
 function botTurn(){
@@ -127,7 +180,7 @@ function botTurn(){
     locked=true;
     animateDraw('bot',1,(drawn)=>{
       locked=false;const c=drawn[0];
-      if(c&&botPlayable(c)){setStatus('🤖 Kartu Bot bisa langsung dimainkan…');setTimeout(()=>botPlay(bot.length-1),280)}
+      if(c&&botPlayable(c)){setStatus('🤖 Bot mendapatkan kartu yang bisa dimainkan.');setTimeout(()=>botPlay(bot.length-1),280)}
       else{turn='player';render();setStatus('Bot tidak punya kartu yang cocok. Giliran kamu.')} });
     return;
   }
