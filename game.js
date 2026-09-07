@@ -69,11 +69,19 @@ function cardElement(card,big=false){
   return e;
 }
 
+function hasPlayableCard(){
+  return player.some(c=>isPlayable(c));
+}
+
 function render(){
   $('#levelBadge').textContent=level.toUpperCase();
   $('#botCount').textContent=`${bot.length} kartu`;
   $('#playerCount').textContent=`${player.length} kartu`;
   $('#deckCount').textContent=deck.length;
+  const drawBtn=$('#drawBtn');
+  const canDraw=turn==='player' && !locked && !hasPlayableCard();
+  drawBtn.disabled=!canDraw;
+  drawBtn.classList.toggle('disabled',!canDraw);
 
   const bh=$('#botHand');bh.innerHTML='';
   bot.forEach((_,i)=>{
@@ -97,8 +105,8 @@ function render(){
   if(turn==='player'){
     const playable=player.map((c,i)=>isPlayable(c)?formatCard(c,i):null).filter(Boolean);
     $('#playableInfo').textContent=playable.length
-      ? `Bisa dipasang: ${playable.join(' • ')}`
-      : 'Tidak ada kartu yang cocok — tekan AMBIL';
+      ? `Bisa dipasang: ${playable.join(' • ')} — AMBIL terkunci`
+      : 'Tidak ada kartu yang cocok — tekan AMBIL untuk mengambil 1 kartu';
   }else{
     $('#playableInfo').textContent='Tunggu giliran Bot...';
   }
@@ -263,15 +271,43 @@ function botPlay(i){
 
 $('#drawBtn').onclick=()=>{
   if(turn!=='player'||locked)return;
-  const c=drawCard(player);
-  render();
-  toast(`Kamu mengambil: ${c.value}${c.color==='wild'?'':` ${COLOR_NAMES[c.color]}`}`);
+  if(hasPlayableCard()){
+    toast('⛔ Masih ada kartu yang bisa dipasang — kamu tidak perlu mengambil');
+    return;
+  }
 
-  // Standard UNO: if drawn card is playable, player may play it; otherwise turn passes.
+  locked=true;
+  const btn=$('#drawBtn');
+  btn.classList.remove('drawPulse');
+  void btn.offsetWidth;
+  btn.classList.add('drawPulse');
+
+  const c=drawCard(player);
+  if(!c){locked=false;render();toast('Deck habis');return;}
+  player.push(c);
+  render();
+
+  const cards=[...$('#playerHand').children];
+  const received=cards.at(-1);
+  if(received){
+    received.classList.add('receivingCard');
+    received.style.animationDelay='0ms';
+  }
+
+  toast(`Kamu mengambil 1 kartu: ${c.value}${c.color==='wild'?'':` ${COLOR_NAMES[c.color]}`}`);
+
+  // Aturan UNO: bila tidak ada kartu yang cocok, ambil 1.
+  // Jika kartu yang diambil ternyata cocok, pemain boleh langsung memainkannya.
   if(isPlayable(c)){
-    setStatus(`Kartu ${formatCard(c)} bisa dipasang — ketuk kartu tersebut`);
+    locked=false;
+    render();
+    setStatus(`Kartu ${formatCard(c)} bisa langsung dipasang — ketuk kartu tersebut`);
   }else{
-    turn='bot';render();setStatus('Kartu tidak cocok. Giliran Bot...');setTimeout(botTurn,700);
+    turn='bot';
+    locked=false;
+    render();
+    setStatus('Kartu yang diambil tidak cocok. Giliran Bot...');
+    setTimeout(botTurn,700);
   }
 };
 
