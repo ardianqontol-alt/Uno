@@ -139,9 +139,17 @@ function botChooseIndex(){
   // EASY sering memilih kartu biasa secara acak, HARD memakai strategi ringan,
   // MASTER lebih cerdas tetapi tetap tidak sempurna.
   if(level==='easy'){
-    const normal=playable.filter(x=>!['wild4','draw5'].includes(x.c.type));
-    const pool=normal.length?normal:playable;
-    return pool[Math.floor(Math.random()*pool.length)].i;
+    // EASY sengaja lebih ramah pemain: bot cenderung membuang kartu biasa,
+    // jarang memakai kartu serangan, dan cukup sering memilih langkah acak.
+    if(Math.random()<0.62){
+      const normal=playable.filter(x=>x.c.type==='number');
+      if(normal.length)return normal[Math.floor(Math.random()*normal.length)].i;
+    }
+    if(Math.random()<0.78){
+      const safe=playable.filter(x=>!['wild4','draw5','draw2','draw1'].includes(x.c.type));
+      if(safe.length)return safe[Math.floor(Math.random()*safe.length)].i;
+    }
+    return playable[Math.floor(Math.random()*playable.length)].i;
   }
 
   function score(c){
@@ -161,15 +169,15 @@ function botChooseIndex(){
     return s;
   }
 
-  // HARD: kadang mengambil keputusan biasa supaya tidak terasa curang.
-  if(level==='hard' && Math.random()<0.32){
+  // HARD: cukup pintar, tetapi masih membuat kesalahan sesekali.
+  if(level==='hard' && Math.random()<0.24){
     const normal=playable.filter(x=>x.c.type==='number'||x.c.type==='skip'||x.c.type==='reverse');
     if(normal.length)return normal[Math.floor(Math.random()*normal.length)].i;
   }
 
   playable.sort((a,b)=>score(b.c)-score(a.c));
-  // MASTER juga punya peluang kecil memilih kandidat kedua.
-  if(level==='master' && playable.length>1 && Math.random()<0.22)return playable[1].i;
+  // MASTER sangat kompetitif, tetapi tetap tidak 100% deterministik.
+  if(level==='master' && playable.length>1 && Math.random()<0.08)return playable[1].i;
   return playable[0].i;
 }
 
