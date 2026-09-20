@@ -1,7 +1,0 @@
-{
-  "version": 2,
-  "rewrites": [
-    {"source": "/uno", "destination": "/index.html"},
-    {"source": "/uno/", "destination": "/index.html"}
-  ]
-}
